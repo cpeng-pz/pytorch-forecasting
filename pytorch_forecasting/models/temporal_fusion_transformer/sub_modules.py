@@ -343,9 +343,9 @@ class VariableSelectionNetwork(nn.Module):
             if name in self.prescalers:
                 variable_embedding = self.prescalers[name](variable_embedding)
             outputs = self.single_variable_grns[name](variable_embedding)  # fast forward if only one variable
-            if outputs.ndim == 3:  # -> batch size, time, hidden size, n_variables
+            if outputs.ndim == 3:  # -> batch size, time, hidden size
                 sparse_weights = torch.ones(outputs.size(0), outputs.size(1), 1, 1, device=outputs.device)  #
-            else:  # ndim == 2 -> batch size, hidden size, n_variables
+            else:  # ndim == 2 -> batch size, hidden size
                 sparse_weights = torch.ones(outputs.size(0), 1, 1, device=outputs.device)
         return outputs, sparse_weights
 

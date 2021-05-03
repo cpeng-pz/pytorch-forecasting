@@ -9,7 +9,7 @@ import requests
 
 BASE_URL = "https://raw.github.com/jdb78/pytorch-forecasting/master/examples/data/"
 
-DATA_PATH = Path(__file__).parent
+DATA_PATH = Path(__file__).parent.parent.parent.joinpath('examples').joinpath('data')
 
 
 def _get_data_by_filename(fname: str) -> Path:

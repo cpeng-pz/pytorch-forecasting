@@ -488,7 +488,7 @@ class TemporalFusionTransformer(BaseModelWithCovariates):
         # skip connection over attention
         attn_output = self.post_attn_gate_norm(attn_output, attn_input[:, max_encoder_length:])
 
-        output = self.pos_wise_ff(attn_output)
+        output = self.pos_wise_ff(attn_output) # 这个pos_wise_ff就是最后出去前的GRN
 
         # skip connection over temporal fusion decoder (not LSTM decoder despite the LSTM output contains
         # a skip from the variable selection network)

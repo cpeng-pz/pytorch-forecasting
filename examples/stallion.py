@@ -1,3 +1,11 @@
+# %% 这是在这个项目里面测试的时候才跑的，修改当前目录到这个项目的主文件夹
+
+import os
+import sys
+sys.path += [os.path.realpath('.')]
+
+# %% 现在开始才是使用时应该用的内容
+
 from pathlib import Path
 import pickle
 import warnings
