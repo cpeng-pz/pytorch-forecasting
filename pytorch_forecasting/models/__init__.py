@@ -14,6 +14,7 @@ from pytorch_forecasting.models.nbeats import NBeats
 from pytorch_forecasting.models.nn import GRU, LSTM, MultiEmbedding, get_rnn
 from pytorch_forecasting.models.rnn import RecurrentNetwork
 from pytorch_forecasting.models.temporal_fusion_transformer import TemporalFusionTransformer
+from pytorch_forecasting.models.intprob_tft import SelfAttentionDecoderEncoder_TFT
 
 __all__ = [
     "NBeats",
@@ -30,4 +31,6 @@ __all__ = [
     "GRU",
     "MultiEmbedding",
     "DecoderMLP",
+
+    "SelfAttentionDecoderEncoder_TFT",
 ]

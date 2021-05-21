@@ -21,7 +21,8 @@ import torch
 from pytorch_forecasting import GroupNormalizer, TemporalFusionTransformer, TimeSeriesDataSet
 from pytorch_forecasting.data.examples import get_stallion_data
 from pytorch_forecasting.metrics import MAE, RMSE, SMAPE, PoissonLoss, QuantileLoss
-from pytorch_forecasting.models.temporal_fusion_transformer.tuning import optimize_hyperparameters
+from pytorch_forecasting.models.intprob_tft.tuning import optimize_hyperparameters
+from pytorch_forecasting.models.intprob_tft import SelfAttentionDecoderEncoder_TFT
 from pytorch_forecasting.utils import profile
 
 warnings.simplefilter("error", category=SettingWithCopyWarning)
@@ -118,7 +119,7 @@ trainer = pl.Trainer(
 )
 
 
-tft = TemporalFusionTransformer.from_dataset(
+tft = SelfAttentionDecoderEncoder_TFT.from_dataset(
     training,
     learning_rate=0.03,
     hidden_size=16,
