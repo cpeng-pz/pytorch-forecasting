@@ -3,8 +3,10 @@ name: Code quality
 on:
   push:
     branches: [master]
+  pull_request_target:
+    types: [assigned, opened, synchronize, reopened]
   pull_request:
-    branches: [master]
+    types: [assigned, opened, synchronize, reopened]
 
 jobs:
   annotation-linters:
@@ -25,9 +27,8 @@ jobs:
 
       - name: Run style linters
         uses: wearerequired/lint-action@v1
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == github.repository_owner }}
+        if: ${{ github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.owner.login == github.repository_owner }}
         with:
-          github_token: ${{ secrets.github_token }}
           # Enable linters
           black: true
           flake8: true

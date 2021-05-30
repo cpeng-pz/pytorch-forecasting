@@ -1,5 +1,12 @@
 # Release Notes
 
+## UNRELEASED
+
+### Fixed
+
+- Fix quantile prediction for tensors on GPUs for distribution losses (#491)
+- Fix hyperparameter update for RecurrentNetwork.from_dataset method (#497)
+
 ## v0.8.5 Generic distribution loss(es) (27/04/2021)
 
 ### Added
