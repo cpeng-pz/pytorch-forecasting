@@ -15,7 +15,7 @@ from pytorch_forecasting.data.encoders import NaNLabelEncoder
 from pytorch_forecasting.metrics import MAE, MAPE, MASE, RMSE, SMAPE, MultiHorizonMetric, MultiLoss, QuantileLoss
 from pytorch_forecasting.models.base_model import BaseModelWithCovariates
 from pytorch_forecasting.models.nn import LSTM, MultiEmbedding
-from pytorch_forecasting.models.temporal_fusion_transformer.sub_modules import (
+from pytorch_forecasting.models.intprob_tft.sub_modules import (
     AddNorm,
     GateAddNorm,
     GatedLinearUnit,
@@ -29,6 +29,7 @@ from pytorch_forecasting.utils import autocorrelation, create_mask, integer_hist
 from pytorch_forecasting.models.intprob_tft.encoder import Encoder, EncoderLayer, ConvLayer
 from pytorch_forecasting.models.intprob_tft.decoder import Decoder, DecoderLayer
 from pytorch_forecasting.models.intprob_tft.attn import InterpretableFullAttention, PaddedProbAttention, InterpretableAttentionLayer, FullAttention, ProbAttention, AttentionLayer
+
 
 class SelfAttentionDecoderEncoder_TFT(BaseModelWithCovariates):
     def __init__(
@@ -64,9 +65,9 @@ class SelfAttentionDecoderEncoder_TFT(BaseModelWithCovariates):
         logging_metrics: nn.ModuleList = None,
 
         # PZ: Copy from Informer2020: Informer.__init__()
-        factor=5, d_model=512, n_heads=8, e_layers=3, d_layers=2, d_ff=512, 
-                attn='prob', activation='gelu', 
-                output_attention = False, distil=True,
+        factor=5, n_heads=8, e_layers=3, d_layers=2,
+        attn='prob', activation='gelu',
+        output_attention=False, distil=False,
 
         **kwargs,
     ):
@@ -140,6 +141,7 @@ class SelfAttentionDecoderEncoder_TFT(BaseModelWithCovariates):
                 Defaults to nn.ModuleList([SMAPE(), MAE(), RMSE(), MAPE()]).
             **kwargs: additional arguments to :py:class:`~BaseModel`.
         """
+
         if logging_metrics is None:
             logging_metrics = nn.ModuleList([SMAPE(), MAE(), RMSE(), MAPE()])
         if loss is None:
@@ -167,6 +169,9 @@ class SelfAttentionDecoderEncoder_TFT(BaseModelWithCovariates):
             }
         )
 
+        # region Frame 1 - *Variable Selections and Static Encoding*
+        
+        # region F1 create: Static Variable Selection
         # variable selection
         # variable selection for static variables
         static_input_sizes = {name: self.hparams.embedding_sizes[name][1] for name in self.hparams.static_categoricals}
@@ -183,7 +188,9 @@ class SelfAttentionDecoderEncoder_TFT(BaseModelWithCovariates):
             dropout=self.hparams.dropout,
             prescalers=self.prescalers,
         )
+        # endregion
 
+        # region F1 get: Encoder-Decoder input sizes for variable selection
         # variable selection for encoder and decoder
         encoder_input_sizes = {
             name: self.hparams.embedding_sizes[name][1] for name in self.hparams.time_varying_categoricals_encoder
@@ -204,7 +211,9 @@ class SelfAttentionDecoderEncoder_TFT(BaseModelWithCovariates):
                 for name in self.hparams.time_varying_reals_decoder
             }
         )
+        # endregion
 
+        # region F1 create: self.shared_single_variable_grns
         # create single variable grns that are shared across decoder and encoder
         if self.hparams.share_single_variable_networks:
             self.shared_single_variable_grns = nn.ModuleDict()
@@ -223,7 +232,9 @@ class SelfAttentionDecoderEncoder_TFT(BaseModelWithCovariates):
                         self.hparams.hidden_size,
                         self.hparams.dropout,
                     )
+        # endregion
 
+        # region F1 create: Encoder-Decoder Variable Selection
         self.encoder_variable_selection = VariableSelectionNetwork(
             input_sizes=encoder_input_sizes,
             hidden_size=self.hparams.hidden_size,
@@ -247,7 +258,9 @@ class SelfAttentionDecoderEncoder_TFT(BaseModelWithCovariates):
             if not self.hparams.share_single_variable_networks
             else self.shared_single_variable_grns,
         )
+        # endregion
 
+        # region F1 create: static encoders for Variable Selection, LSTM hidden and cell state, and post-Encoder-Decoder static enrichment
         # static encoders
         # for variable selection
         self.static_context_variable_selection = GatedResidualNetwork(
@@ -277,82 +290,110 @@ class SelfAttentionDecoderEncoder_TFT(BaseModelWithCovariates):
         self.static_context_enrichment = GatedResidualNetwork(
             self.hparams.hidden_size, self.hparams.hidden_size, self.hparams.hidden_size, self.hparams.dropout
         )
+        # endregion
 
+        # endregion Frame 1
+
+        # region Frame 2 - *Encoder-Decoder Architecture*
+
+        # TODO to-be-removed
+        # region F2 create: LSTM Encoder and Decoder (removed)
         # lstm encoder (history) and decoder (future) for local processing
-        self.lstm_encoder = LSTM(
-            input_size=self.hparams.hidden_size,
-            hidden_size=self.hparams.hidden_size,
-            num_layers=self.hparams.lstm_layers,
-            dropout=self.hparams.dropout if self.hparams.lstm_layers > 1 else 0,
-            batch_first=True,
-        )
+        # self.lstm_encoder = LSTM(
+        #     input_size=self.hparams.hidden_size,
+        #     hidden_size=self.hparams.hidden_size,
+        #     num_layers=self.hparams.lstm_layers,
+        #     dropout=self.hparams.dropout if self.hparams.lstm_layers > 1 else 0,
+        #     batch_first=True,
+        # )
 
-        self.lstm_decoder = LSTM(
-            input_size=self.hparams.hidden_size,
-            hidden_size=self.hparams.hidden_size,
-            num_layers=self.hparams.lstm_layers,
-            dropout=self.hparams.dropout if self.hparams.lstm_layers > 1 else 0,
-            batch_first=True,
-        )
+        # self.lstm_decoder = LSTM(
+        #     input_size=self.hparams.hidden_size,
+        #     hidden_size=self.hparams.hidden_size,
+        #     num_layers=self.hparams.lstm_layers,
+        #     dropout=self.hparams.dropout if self.hparams.lstm_layers > 1 else 0,
+        #     batch_first=True,
+        # )
+        # endregion
 
+        # region F2 create: New Encoder-Decoder based on self-attention TODO
         # TODO 把上面的LSTM encoder decoder去掉，换成自定义的Encoder、Decoder
         # 把informer的Decoder那里修复一下，把informer的Encoder和Decoder类移植到这边来
-        Attn = ProbAttention if attn=='prob' else FullAttention
-        InterpretableAttn = PaddedProbAttention if attn=='intprob' else InterpretableFullAttention
+        Attn = ProbAttention if attn == 'prob' else FullAttention
+        InterpretableAttn = PaddedProbAttention if attn == 'intprob' else InterpretableFullAttention
 
         # TODO 这里的d_model需要换一下，要跟输入参数形状匹配
         self.encoder = Encoder(
             [
                 EncoderLayer(
-                    # PZ 
-                    # AttentionLayer(Attn(False, factor, attention_dropout=dropout, output_attention=output_attention), 
+                    # PZ
+                    # AttentionLayer(Attn(False, factor, attention_dropout=dropout, output_attention=output_attention),
                     #             d_model, n_heads),
-                    InterpretableAttentionLayer(InterpretableAttn(False, factor, attention_dropout=dropout, output_attention=output_attention), d_model, n_heads) if attn=='intprob' or attn=='intfull'
-                    else AttentionLayer(Attn(False, factor, attention_dropout=dropout, output_attention=output_attention), d_model, n_heads),
-                    d_model,
-                    d_ff,
+                    attention = InterpretableAttentionLayer(
+                        InterpretableAttn(False, factor, attention_dropout=dropout, output_attention=output_attention), 
+                        self.hparams.hidden_size, 
+                        n_heads) if attn == 'intprob' or attn == 'intfull'
+                    else AttentionLayer(
+                        Attn(False, factor, attention_dropout=dropout, output_attention=output_attention), 
+                        self.hparams.hidden_size, 
+                        n_heads),
+                    d_model=self.hparams.hidden_size,
+                    d_ff=self.hparams.hidden_size,
                     dropout=dropout,
                     activation=activation
                 ) for l in range(e_layers)
             ],
             [
                 ConvLayer(
-                    d_model
-                ) for l in range(e_layers-1)
+                    c_in=self.hparams.hidden_size
+                ) for l in range(e_layers - 1)
             ] if distil else None,
-            norm_layer=torch.nn.LayerNorm(d_model)
+            norm_layer=torch.nn.LayerNorm(self.hparams.hidden_size)
         )
 
         self.decoder = Decoder(
             [
                 DecoderLayer(
                     # PZ
-                    # AttentionLayer(Attn(True, factor, attention_dropout=dropout, output_attention=False), 
+                    # AttentionLayer(Attn(True, factor, attention_dropout=dropout, output_attention=False),
                     #             d_model, n_heads),
-                    InterpretableAttentionLayer(InterpretableAttn(True, factor, attention_dropout=dropout, output_attention=output_attention), d_model, n_heads) if attn=='intprob' or attn=='intfull'
-                    else AttentionLayer(Attn(True, factor, attention_dropout=dropout, output_attention=output_attention), d_model, n_heads),
-                    AttentionLayer(FullAttention(False, factor, attention_dropout=dropout, output_attention=False), 
-                                d_model, n_heads),
-                    d_model,
-                    self.pred_len, # TODO 写好参数传递的代码
-                    d_ff=d_ff,
-                    dropout=dropout,
-                    activation=activation,
-                    case=0 # TODO decoder input length cases; only meaningful when actual decoder input includes label_len + pred_len
+                    self_attention = InterpretableAttentionLayer(
+                        InterpretableAttn(True, factor, attention_dropout=dropout, output_attention=output_attention), 
+                        self.hparams.hidden_size, 
+                        n_heads) if attn == 'intprob' or attn == 'intfull'
+                                else AttentionLayer(
+                                    Attn(True, factor, attention_dropout=dropout, output_attention=output_attention), 
+                                    self.hparams.hidden_size, 
+                                    n_heads),
+                    cross_attention = AttentionLayer(
+                        FullAttention(False, factor, attention_dropout=dropout, output_attention=False),
+                        self.hparams.hidden_size, 
+                        n_heads),
+                    d_model = self.hparams.hidden_size,
+                    d_ff = self.hparams.hidden_size,
+                    dropout = dropout,
+                    activation = activation,
+                    case = 0  # TODO decoder input length cases; only meaningful when actual decoder input includes label_len + pred_len
                 )
                 for l in range(d_layers)
             ],
-            norm_layer=torch.nn.LayerNorm(d_model)
+            norm_layer=torch.nn.LayerNorm(self.hparams.hidden_size)
         )
+        # endregion
 
+        # region F2 create: Post Encoder-Decoder Gated AddNorm, shared for encoder and decoder
         # skip connection for lstm
-        self.post_lstm_gate_encoder = GatedLinearUnit(self.hparams.hidden_size, dropout=self.hparams.dropout)
-        self.post_lstm_gate_decoder = self.post_lstm_gate_encoder
+        self.post_encoder_gate = GatedLinearUnit(self.hparams.hidden_size, dropout=self.hparams.dropout)
+        self.post_decoder_gate = self.post_encoder_gate
         # self.post_lstm_gate_decoder = GatedLinearUnit(self.hparams.hidden_size, dropout=self.hparams.dropout)
-        self.post_lstm_add_norm_encoder = AddNorm(self.hparams.hidden_size, trainable_add=False)
+        self.post_encoder_add_norm = AddNorm(self.hparams.hidden_size, trainable_add=False)
         # self.post_lstm_add_norm_decoder = AddNorm(self.hparams.hidden_size, trainable_add=True)
-        self.post_lstm_add_norm_decoder = self.post_lstm_add_norm_encoder
+        self.post_decoder_add_norm = self.post_encoder_add_norm
+        # endregion
 
+        #endregion Frame 2
+
+        # region Frame 3
         # static enrichment and processing past LSTM
         self.static_enrichment = GatedResidualNetwork(
             input_size=self.hparams.hidden_size,
@@ -382,6 +423,8 @@ class SelfAttentionDecoderEncoder_TFT(BaseModelWithCovariates):
             )
         else:
             self.output_layer = nn.Linear(self.hparams.hidden_size, self.hparams.output_size)
+
+        # endregion Frame 3
 
     @classmethod
     def from_dataset(
@@ -469,6 +512,7 @@ class SelfAttentionDecoderEncoder_TFT(BaseModelWithCovariates):
             }
         )
 
+        # region Frame 1 - *Embedding and Variable Selection*
         # Embedding and variable selection
         if len(self.static_variables) > 0:
             # static embeddings will be constant over entire batch
@@ -499,45 +543,18 @@ class SelfAttentionDecoderEncoder_TFT(BaseModelWithCovariates):
             embeddings_varying_decoder,
             static_context_variable_selection[:, max_encoder_length:],
         )
+        # endregion Frame 1
 
-        # TODO - 代替下面的LSTM的代码
-        # 可以先不添加static embedding
+        # Encoder-Decoder架构，直接用 Informer 的 Encoder 和 Decoder；distill已经被设为False；Encoder后面的AddNorm已经去掉了，因为Encoder中间本身就有skip connection通道
         encoder_output, attns = self.encoder(embeddings_varying_encoder)
-        dec_out = self.decoder(embeddings_varying_decoder, encoder_output)
+        decoder_output = self.decoder(embeddings_varying_decoder, encoder_output)
 
-        # LSTM
-        # calculate initial state
-        input_hidden = self.static_context_initial_hidden_lstm(static_embedding).expand(
-            self.hparams.lstm_layers, -1, -1
-        )
-        input_cell = self.static_context_initial_cell_lstm(static_embedding).expand(self.hparams.lstm_layers, -1, -1)
-
-        # run local encoder
-        encoder_output, (hidden, cell) = self.lstm_encoder(
-            embeddings_varying_encoder, (input_hidden, input_cell), lengths=encoder_lengths, enforce_sorted=False
-        )
-
-        # run local decoder
-        decoder_output, _ = self.lstm_decoder(
-            embeddings_varying_decoder,
-            (hidden, cell),
-            lengths=decoder_lengths,
-            enforce_sorted=False,
-        )
-
-        # skip connection over lstm
-        lstm_output_encoder = self.post_lstm_gate_encoder(encoder_output)
-        lstm_output_encoder = self.post_lstm_add_norm_encoder(lstm_output_encoder, embeddings_varying_encoder)
-
-        lstm_output_decoder = self.post_lstm_gate_decoder(decoder_output)
-        lstm_output_decoder = self.post_lstm_add_norm_decoder(lstm_output_decoder, embeddings_varying_decoder)
-
-        lstm_output = torch.cat([lstm_output_encoder, lstm_output_decoder], dim=1)
+        encoder_decoder_output = torch.cat([encoder_output, decoder_output], dim=1)
 
         # static enrichment
         static_context_enrichment = self.static_context_enrichment(static_embedding)
         attn_input = self.static_enrichment(
-            lstm_output, self.expand_static_context(static_context_enrichment, timesteps)
+            encoder_decoder_output, self.expand_static_context(static_context_enrichment, timesteps)
         )
 
         # Attention
@@ -553,11 +570,11 @@ class SelfAttentionDecoderEncoder_TFT(BaseModelWithCovariates):
         # skip connection over attention
         attn_output = self.post_attn_gate_norm(attn_output, attn_input[:, max_encoder_length:])
 
-        output = self.pos_wise_ff(attn_output) # 这个pos_wise_ff就是最后出去前的GRN
+        output = self.pos_wise_ff(attn_output)  # 这个pos_wise_ff就是最后出去前的GRN
 
         # skip connection over temporal fusion decoder (not LSTM decoder despite the LSTM output contains
         # a skip from the variable selection network)
-        output = self.pre_output_gate_norm(output, lstm_output[:, max_encoder_length:])
+        output = self.pre_output_gate_norm(output, encoder_decoder_output[:, max_encoder_length:])
         if self.n_targets > 1:  # if to use multi-target architecture
             output = [output_layer(output) for output_layer in self.output_layer]
         else:

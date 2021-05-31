@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 class DecoderLayer(nn.Module):
     def __init__(self, self_attention, cross_attention, d_model, 
-                 pred_len, case=0,
+                 pred_len=0, case=0,
                  d_ff=None, dropout=0.1, activation="relu"):
         super(DecoderLayer, self).__init__()
         d_ff = d_ff or 4*d_model
